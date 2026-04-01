@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <title>iWallet Pro</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f2f2f7; --card: #ffffff; --text: #000000; 
+            --primary: #007aff; --accent: #34c759; --danger: #ff3b30; --income: #5856d6;
+            --input-bg: #e5e5ea;
+        }
+        [data-theme="dark"] {
+            --bg: #000000; --card: #1c1c1e; --text: #ffffff; 
+            --primary: #0a84ff; --accent: #30d158; --danger: #ff453a; --income: #5e5ce6;
+            --input-bg: #2c2c2e;
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: var(--bg); color: var(--text); padding: env(safe-area-inset-top) 20px 40px 20px; 
+            transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); margin: 0;
+            user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+
+        /* OVERLAY THEME PRO */
+        #theme-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 0;
+            background: var(--primary); z-index: 9999;
+            transition: height 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+            border-bottom-left-radius: 50% 20px; border-bottom-right-radius: 50% 20px;
+        }
+        #theme-overlay.active { height: 100vh; border-radius: 0; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
+        .header h2 { font-weight: 800; letter-spacing: -1.5px; background: linear-gradient(90deg, var(--primary), var(--income)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-size: 24px; }
+
+        .card { 
+            background: var(--card); padding: 22px; border-radius: 28px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06); margin-bottom: 20px; 
+        }
+
+        input, select { 
+            width: 100%; padding: 15px; margin: 10px 0; border: none; box-sizing: border-box;
+            border-radius: 14px; background: var(--input-bg); color: var(--text); font-size: 16px; outline: none;
+        }
+        
+        .stat-box { background: var(--bg); padding: 18px; border-radius: 20px; text-align: center; }
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--primary), var(--income)); color: white; 
+            padding: 18px; border-radius: 16px; font-weight: 700; width: 100%; border: none; 
+            cursor: pointer; box-shadow: 0 8px 20px rgba(0, 122, 255, 0.3); font-size: 16px;
+        }
+        .btn-primary:active { transform: scale(0.95); }
+        
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 0.5px solid rgba(142, 142, 147, 0.2); }
+        .icon-circle { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; margin-right: 12px; }
+    </style>
+</head>
+<body data-theme="dark">
+
+    <div id="theme-overlay"></div>
+
+    <audio id="snd_pull"><source src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" type="audio/mpeg"></audio>
+    <audio id="snd_cash"><source src="https://assets.mixkit.co/active_storage/sfx/2017/2017-preview.mp3" type="audio/mpeg"></audio>
+
+    <div class="header">
+        <h2>iWallet Pro</h2>
+        <button onclick="switchThemeWithAnim()" style="background:none; border:none; color:var(--text); font-size: 24px;">
+            <i class="fas fa-adjust" id="theme-icon"></i>
+        </button>
+    </div>
+
+    <div class="card">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div class="stat-box">
+                <small style="opacity:0.6;">Sisa Saldo</small>
+                <span id="sisa" style="color: var(--accent); font-weight: 800; font-size: 1.3em; display: block;">Rp 0</span>
+            </div>
+            <div class="stat-box">
+                <small style="opacity:0.6;">Keluar</small>
+                <span id="total_out_val" style="color: var(--danger); font-weight: 800; font-size: 1.3em; display: block;">Rp 0</span>
+            </div>
+        </div>
+        <canvas id="mainChart" style="max-height: 200px;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0"><i class="fas fa-wallet" style="color:var(--income)"></i> Gaji Pokok</h3>
+        <input type="number" id="main_income" placeholder="Isi Gaji" oninput="saveIncome()">
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0"><i class="fas fa-plus-circle" style="color:var(--primary)"></i> Transaksi</h3>
+        <input type="text" id="item_name" placeholder="Nama Transaksi">
+        <input type="number" id="item_price" placeholder="Jumlah Rp">
+        <select id="trans_type">
+            <option value="out">🔴 Pengeluaran</option>
+            <option value="in">🟢 Pemasukan Tambahan</option>
+        </select>
+        <select id="item_month">
+            <option value="Januari">Januari</option><option value="Februari">Februari</option>
+            <option value="Maret">Maret</option><option value="April" selected>April</option>
+            <option value="Mei">Mei</option><option value="Juni">Juni</option>
+            <option value="Juli">Juli</option><option value="Agustus">Agustus</option>
+            <option value="September">September</option><option value="Oktober">Oktober</option>
+            <option value="November">November</option><option value="Desember">Desember</option>
+        </select>
+        <button class="btn-primary" onclick="addTransaction()">Simpan ✨</button>
+    </div>
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3><i class="fas fa-history"></i> Histori</h3>
+            <select id="filter_month" onchange="renderData()" style="width:auto; padding:5px;">
+                <option value="Januari">Januari</option><option value="Februari">Februari</option>
+                <option value="Maret">Maret</option><option value="April" selected>April</option>
+                <option value="Mei">Mei</option><option value="Juni">Juni</option>
+                <option value="Juli">Juli</option><option value="Agustus">Agustus</option>
+                <option value="September">September</option><option value="Oktober">Oktober</option>
+                <option value="November">November</option><option value="Desember">Desember</option>
+            </select>
+        </div>
+        <div id="history_list"></div>
+        <button onclick="exportToText()" style="background:#8e8e93; color:white; margin-top:20px; border-radius:12px; padding:15px; width:100%; border:none; font-weight:700;">SALIN LAPORAN</button>
+    </div>
+
+<script>
+    let myChart;
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+
+    function switchThemeWithAnim() {
+        const overlay = document.getElementById('theme-overlay');
+        const sound = document.getElementById('snd_pull');
+        sound.currentTime = 0; sound.play();
+        overlay.classList.add('active');
+        setTimeout(() => {
+            const body = document.body;
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            setTimeout(() => { overlay.classList.remove('active'); }, 300);
+        }, 600);
+    }
+
+    function saveIncome() {
+        localStorage.setItem('mainIncome', document.getElementById('main_income').value);
+        renderData();
+    }
+
+    function addTransaction() {
+        const name = document.getElementById('item_name').value;
+        const price = parseFloat(document.getElementById('item_price').value);
+        const type = document.getElementById('trans_type').value;
+        const month = document.getElementById('item_month').value;
+        const date = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'short' });
+
+        if (name && price) {
+            document.getElementById('snd_cash').currentTime = 0;
+            document.getElementById('snd_cash').play();
+            transactions.push({ name, price, type, month, date });
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            document.getElementById('item_name').value = '';
+            document.getElementById('item_price').value = '';
+            renderData();
+        }
+    }
+
+    function renderData() {
+        const filterMonth = document.getElementById('filter_month').value;
+        const mainIncome = parseFloat(document.getElementById('main_income').value) || 0;
+        const listEl = document.getElementById('history_list');
+        listEl.innerHTML = '';
+        let totalOut = 0; let extraIn = 0;
+        const filtered = transactions.filter(t => t.month === filterMonth);
+        filtered.reverse().forEach((t) => {
+            if(t.type === 'out') totalOut += t.price; else extraIn += t.price;
+            listEl.innerHTML += `<div class="history-item">
+                <div style="display:flex; align-items:center;">
+                    <div class="icon-circle" style="background:${t.type === 'out' ? 'var(--danger)' : 'var(--accent)'}"><i class="fas ${t.type === 'out' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i></div>
+                    <div><b>${t.name}</b><br><small style="color:#8e8e93">${t.date}</small></div>
+                </div>
+                <span style="color:${t.type === 'out' ? 'var(--danger)' : 'var(--accent)'}; font-weight:700;">${t.type === 'out' ? '-' : '+'} Rp ${t.price.toLocaleString()}</span>
+            </div>`;
+        });
+        updateDashboard(mainIncome + extraIn, totalOut);
+    }
+
+    function updateDashboard(totalIn, totalOut) {
+        const sisa = totalIn - totalOut;
+        document.getElementById('sisa').innerText = "Rp " + sisa.toLocaleString('id-ID');
+        document.getElementById('total_out_val').innerText = "Rp " + totalOut.toLocaleString('id-ID');
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        if (myChart) myChart.destroy();
+        myChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Keluar', 'Sisa'],
+                datasets: [{ data: [totalOut, sisa > 0 ? sisa : 0], backgroundColor: [totalOut > totalIn ? '#ff3b30' : '#0a84ff', '#34c759'], borderWidth: 0 }]
+            },
+            options: { cutout: '85%', plugins: { legend: { display: false } } }
+        });
+    }
+
+    function exportToText() {
+        const month = document.getElementById('filter_month').value;
+        const report = `📊 LAPORAN ${month.toUpperCase()}\nSaldo: ${document.getElementById('sisa').innerText}`;
+        navigator.clipboard.writeText(report).then(() => alert('Tersalin! 📋'));
+    }
+
+    document.getElementById('main_income').value = localStorage.getItem('mainIncome') || 4500000;
+    renderData();
+    document.body.addEventListener('click', () => { document.querySelectorAll('audio').forEach(a => { a.play(); a.pause(); }); }, { once: true });
+</script>
+</body>
+</html>
